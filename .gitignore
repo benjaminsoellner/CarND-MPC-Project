@@ -3,3 +3,10 @@ build
 tags
 .editorconfig
 .DS_Store
+nbproject
+CMakeFiles
+mpc
+Makefile
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
