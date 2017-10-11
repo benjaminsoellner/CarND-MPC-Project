@@ -1,1 +1,1 @@
-docker build . -t carndmpcproject
+docker build . --no-cache -t carndmpcproject

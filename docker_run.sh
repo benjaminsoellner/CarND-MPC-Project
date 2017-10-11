@@ -9,6 +9,7 @@ export DISPLAY=127.0.0.1:0
 docker run --name carndmpcproject-0 --rm --privileged -dt \
   --memory=8g \
   -p 2223:22 \
+  -p 4567:4567 \
   -v $SCRIPTPATH:/src \
   -e DISPLAY \
   carndmpcproject
