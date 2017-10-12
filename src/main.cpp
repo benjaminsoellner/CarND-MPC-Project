@@ -158,7 +158,7 @@ int main() {
                         // R(0) = ((1 + c^2)^1.5 / abs(2b)
                         radius = pow(1.0+pow(coeff[1], 2), 1.5) / fabs(2.*coeff[2]);
                     } else {
-                        radius = 10000.;
+                        radius = 1000.;
                     }
                     
                     // Set reference speed depending on radius

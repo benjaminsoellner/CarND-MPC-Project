@@ -1,7 +1,19 @@
-# CarND-Controls-MPC
-Self-Driving Car Engineer Nanodegree Program
+# Self Driving Car Engineer Project 10 - Model Predictive Control
+## Benjamin Söllner, 11 Oct 2017
 
 ---
+
+![Fun Project Header Image](project_carnd_10_model_predictive_control_400.png)
+
+## Reflection
+
+### The Model - State, Actuators and Update Equations
+
+### Trials of Timestep Length and Elapsed Duration (N & dt)
+
+### Polynomial Fitting and MPC Preprocessing
+
+### Accounting for Latency
 
 ## Dependencies
 
