@@ -9,8 +9,8 @@ using CppAD::AD;
 // We set the number of timesteps to 15
 // and the timestep evaluation frequency or evaluation
 // period to 0.15.
-size_t N = 20;
-double dt = 0.5;
+size_t N = 15;
+double dt = 0.15;
 
 
 // The solver takes all the state variables and actuator
