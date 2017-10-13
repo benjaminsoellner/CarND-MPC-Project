@@ -101,7 +101,7 @@ By constraining the *ipopt* optimizer like described above, and furthermore
 minimizing the cost, the right set of actuations and resulting trajectory can
 be found at each timestep.
 
-### Trials of Timestep Length and Elapsed Duration (N & dt)
+### Various Tests of Timestep Length and Elapsed Duration (``N`` & ``dt``)
 
 ``N`` is the amount of steps predicted by the predictive controller and ``dt``
 is the time distance between those steps. Various values for ``N`` and ``dt``
@@ -129,6 +129,15 @@ predicted trajectory has already passed.
 
 #### ``dt`` too high (``N=20, dt=0.05``)
 
+If ``dt`` is too high, especially in a case where it involves a predicted
+trajectory with too many curves, the optimization becomes unstable and the
+predicted path sort-of wiggely:
+
+![Screenshot with dt Too High](images/screenshot-n20-dt05.png)
+
+This can lead to the car oversteering and ultimately leaving the track:
+
+![Screenshot with dt Too High - With Car Off Track](images/screenshot-n20-dt05-fail.png)
 
 ### Polynomial Fitting and MPC Preprocessing
 
@@ -267,10 +276,16 @@ if (latency > 0) {
 * Simulator. You can download these from the [releases tab](https://github.com/udacity/self-driving-car-sim/releases).
 * Not a dependency but read the [DATA.md](./DATA.md) for a description of the data sent back from the simulator.
 
-
 ## Basic Build Instructions
 
 1. Clone this repo.
 2. Make a build directory: `mkdir build && cd build`
 3. Compile: `cmake .. && make`
 4. Run it: `./mpc`.
+
+## Submitted Files
+
+* [``README.md``](README.md), [``readme.html``](readme.html): you are reading it! :)
+* [``src/MPC.cpp``](src/MPC.cpp): Controller logic
+* [``src/main.cpp``](src/main.cpp): Boilerplate code and code for websocket communication as
+well as initializing of controller + preprocessing of data
