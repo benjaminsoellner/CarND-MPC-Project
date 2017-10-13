@@ -1,11 +1,13 @@
 # Self Driving Car Engineer Project 10 - Model Predictive Control
-## Benjamin Söllner, 11 Oct 2017
+## Benjamin Söllner, 13 Oct 2017
 
 ---
 
 ![Fun Project Header Image](project_carnd_10_model_predictive_control_400.png)
 
 ---
+
+![Screenshot of Car Driving Across Predicted Path](images/screenshot.png)
 
 This C++ project of the Udacity Self Driving Car Engineer Nanodegree implements
 a Predictive Controller to steer a vehicle on a given track.
@@ -24,7 +26,10 @@ The predictive controller then aims to minimize the cross-track-error, the
 bearing error as well as the magnitude of the steering inputs across all
 timesteps ``N``.
 
-![Screenshot of Car Driving Across Predicted Path](images/screenshot.png)
+[![The video thumbnail](http://img.youtube.com/vi/3EJbkcEs55U/0.jpg)](https://youtu.be/3EJbkcEs55U)
+
+*(note that the latency captured in the video is significantly larger than
+without recording turned on, hence there is some oversteering)*
 
 ## Reflection
 
@@ -131,7 +136,8 @@ predicted trajectory has already passed.
 
 If ``dt`` is too high, especially in a case where it involves a predicted
 trajectory with too many curves, the optimization becomes unstable and the
-predicted path sort-of wiggely:
+predicted path sort-of wiggely. My guess is that the second-order polynomial
+simply is not sophisticated enough any more to mimic the subsequent road turns:
 
 ![Screenshot with dt Too High](images/screenshot-n20-dt05.png)
 
@@ -247,9 +253,9 @@ if (latency > 0) {
     psi = psi - v * deg2rad(prev_steer_value * 25.) / mpc.Lf * latency;
 }
 ```
+## Environment
 
-
-## Dependencies
+### Dependencies
 
 * cmake >= 3.5
  * All OSes: [click here for installation instructions](https://cmake.org/install/)
@@ -276,7 +282,13 @@ if (latency > 0) {
 * Simulator. You can download these from the [releases tab](https://github.com/udacity/self-driving-car-sim/releases).
 * Not a dependency but read the [DATA.md](./DATA.md) for a description of the data sent back from the simulator.
 
-## Basic Build Instructions
+### Development Environment
+
+I used a combination of Windows 10 Home + Docker (with Boot2Docker in Virtual Box) running GNU Build tools + Netbeans with Remote Debugging.
+
+If this is the setup you want to use, there are some ressources to get started in the ``ide_profiles/netbeans-win10-docker`` folder. The docker container set up there even allows for X11 forwarding of graphics produced by matplotlib!
+
+### Building
 
 1. Clone this repo.
 2. Make a build directory: `mkdir build && cd build`
@@ -289,3 +301,4 @@ if (latency > 0) {
 * [``src/MPC.cpp``](src/MPC.cpp): Controller logic
 * [``src/main.cpp``](src/main.cpp): Boilerplate code and code for websocket communication as
 well as initializing of controller + preprocessing of data
+* ``ide_profiles/netbeans-win10-docker``: some ressources to get started with a development environment based on Windows 10 Home + Docker (with Boot2Docker in Virtual Box) running GNU Build tools + Netbeans with Remote Debugging. Even includes X11 forwarding of graphics produced by matplotlib to Xming on Windows or similar.
