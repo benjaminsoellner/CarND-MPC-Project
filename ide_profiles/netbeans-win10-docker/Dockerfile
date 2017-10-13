@@ -45,9 +45,9 @@ RUN apt-get update && apt-get install -y \
     wget \
     cppad \
     gdb \
-    python-matplotlib \ 
+    python-matplotlib \
     python2.7-dev
-    
+
 ENV NOTVISIBLE "in users profile"
 RUN echo "export VISIBLE=now" >> /etc/profile
 
@@ -61,8 +61,8 @@ RUN apt-get update && apt-get upgrade
 # IPopt optimizer
 # commented out for now
 ###
-    
-ADD install_ipopt.sh .
+
+ADD ../../install_ipopt.sh .
 
 RUN wget https://www.coin-or.org/download/source/Ipopt/Ipopt-3.12.7.zip && unzip Ipopt-3.12.7.zip && rm Ipopt-3.12.7.zip
 RUN bash install_ipopt.sh Ipopt-3.12.7

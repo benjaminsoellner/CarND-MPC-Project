@@ -5,15 +5,240 @@
 
 ![Fun Project Header Image](project_carnd_10_model_predictive_control_400.png)
 
+---
+
+This C++ project of the Udacity Self Driving Car Engineer Nanodegree implements
+a Predictive Controller to steer a vehicle on a given track.
+The track information as well as the control information (throttle + steering)
+are exchanged via a websocket interface with the Udacity Self Driving Car
+Simulator. The corresponding project page can be found
+[here](https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/f1820894-8322-4bb3-81aa-b26b3c6dcbaf/lessons/b1ff3be0-c904-438e-aad3-2b5379f0e0c3/concepts/1a2255a0-e23c-44cf-8d41-39b8a3c8264a).
+
+The predictive controller calculates a polynomial through the waypoints that
+are closest to the vehicle and then carculates cross-track-error and bearing
+error for the current vehicle position as well as for any vehicle position
+that is on the predicted trajectory of the vehicle given a set of actuator
+inputs along the next ``N`` timesteps of duration ``dt``.
+
+The predictive controller then aims to minimize the cross-track-error, the
+bearing error as well as the magnitude of the steering inputs across all
+timesteps ``N``.
+
+![Screenshot of Car Driving Across Predicted Path](images/screenshot.png)
+
 ## Reflection
 
 ### The Model - State, Actuators and Update Equations
 
+The actuators are represented as *delta* (steering) and *a* (throttle). The
+vehicle state at any predicted time is represented as follows:
+
+* ``x`` ... the x-position
+current time
+* ``y`` ... the y-position
+* ``psi`` ... the bearing
+* ``v`` ... the velocity along the x axis
+* ``cte`` ... the cross-track-error orthogonal to the polygon drawn by
+the waypoints
+* ``epsi`` ... the bearing error in relation to the tangent applied to the
+polygon of waypoints.
+
+All coordinates are in relation to the vehicle coordinate system at the
+current time.
+
+The actuators for the motion model are:
+
+* ``delta`` ... the steering
+* ``a`` ... the throttle
+
+From the current vehicle state at timestep ``t0``, the state at the next timestep
+``t1`` (with ``t1-t0=dt``) can be calculated as follows:
+
+```
+x[t1] = x[t0] + v[t0] * cos(psi[t0]) * dt
+y[t1] = y[t0] + v[t0] * sin(psi[t]) * dt
+psi[t1] = psi[t0] + v[t0] / Lf * delta[t] * dt
+v[t1] = v[t0] + a[t0] * dt
+cte[t1] = f(x[t0]) - y[t0] + v[t0] * sin(epsi[t]) * dt
+// ... with f(x)=ax^3+bx^2+c being the polygon representing the waypoint path
+epsi[t1] = psi[t0] - psides[t0] + v[t0] * delta[t0] / Lf * dt
+// ... with psides[t0] being the "designated bearing" at point t0, calculated
+//     by atan(c) with c from f(x)=ax^3+bx^2+c.
+```
+
+The vehicle and motion model is then applied in an *ipopt*-Solver.
+
+* For the motion model, each constraint ``g(t1)=h(t0)`` is applied as a
+constraint ``g(t1)-h(t0)`` that is optimized towards zero (upper and lower
+bound) thereby pushing the vehicle to it's optimal state on its predicted
+trajectory
+* For the vehicle model (inital state), each state ``g(t1)=s`` is applied as
+a constraint ``g(t1)`` that is optimized towards ``s`` (upper and lower bound)
+thereby asserting that the optimization indeed accounts for the vehicle starting
+at the state it is currently at
+* For the actuators, meaningful upper and lower bounds are chosen (-0.436 ..
+0.436 for ``delta``, -1.0 .. 1.0 for ``a``) so that the actuators stay within
+physical possible limits
+* The cost is not limited by upper and lower limits.
+
+However, the cost is still mimized by the optimizer, and the following values
+are summed up into the cost:
+
+* all squared ``cte``s across all ``N`` points, with an additional
+``cte_penalty`` factor of 5 each
+* all squared ``epsi``s across all ``N`` points
+* all squared differences to the reference velocity (``v-v_ref``) across all
+``N`` points
+* all steering inputs ``delta`` across all ``N`` points with an additional
+``steering_penalty`` factor of 2000 each
+* all throttle inputs ``a`` across all ``N`` points
+* all squared differences of steering inputs ``delta[t1]-delta[t0]`` between
+subsequent steering actuations (``N-1`` data points)
+* all squared differences of steering inputs ``a[t1]-a[t0]`` between
+subsequent throttle actuations (``N-1`` data points)
+
+By constraining the *ipopt* optimizer like described above, and furthermore
+minimizing the cost, the right set of actuations and resulting trajectory can
+be found at each timestep.
+
 ### Trials of Timestep Length and Elapsed Duration (N & dt)
+
+``N`` is the amount of steps predicted by the predictive controller and ``dt``
+is the time distance between those steps. Various values for ``N`` and ``dt``
+have been explored. ``N`` stayed in the ballpark of 10-30 and ``dt`` in the
+ballpark of ``some_factor * anticipated_latency``. ``N=15`` and ``dt=0.15``
+was found to be working quite good.
+
+#### ``dt`` too low (``N=15, dt=0.05``)
+
+If ``dt`` is too low, the car drifts
+off the controlled trajectory, similarly than a too low D-coefficienct in a PID
+controller. This can eventually lead to fatal behaviour.
+
+![Screenshot with dt Too Low](images/screenshot-n15-dt005.png)
+
+#### ``N`` too high, ``dt`` too low (``N=25, dt=25``)
+
+The previous behaviour can be somewhat counteracted by increasing ``N``.
+However, increasing ``N`` increases computation time and thereby latency,
+ultimately leading to sluggish and unprecise control behaviour. Notice how in
+the screenshot below, the car only actuates after the first part of the
+predicted trajectory has already passed.
+
+![Screenshot with N Too High](images/screenshot-n25-dt005.png)
+
+#### ``dt`` too high (``N=20, dt=0.05``)
+
 
 ### Polynomial Fitting and MPC Preprocessing
 
+Polynomial fitting was accomplished by transforming the waypoint coordinates into
+the vehicle coordinate system (see ``main.cpp``):
+
+```c++
+// Convert waypoints from global to car coordinate system
+// Eigen::VectorXd representation needed for MPC
+Eigen::VectorXd wayptsx_car(wayptsx.size());
+Eigen::VectorXd wayptsy_car(wayptsy.size());
+// vector<double> representation needed for output of polynom to simulator (later)
+vector<double> wayptsx_car_v(wayptsx.size());
+vector<double> wayptsy_car_v(wayptsx.size());
+for (unsigned int i = 0; i < wayptsx.size(); i++) {
+    double x = (wayptsx[i]-px) * cos(psi) + (wayptsy[i]-py) * sin(psi);
+    double y = -(wayptsx[i]-px) * sin(psi) + (wayptsy[i]-py) * cos(psi);
+    wayptsx_car[i] = x;
+    wayptsx_car_v[i] = x;
+    wayptsy_car[i] = y;
+    wayptsy_car_v[i] = y;
+}
+```
+
+... and then using the ``polyfit(...)`` function to fit a polynomial. The
+polynomial was used in the predictive controller to calculate the errors ``cte``
+and ``epsi``.
+
+```c++
+// Fit polynomial through waypoints
+const int poly_order = 2;
+Eigen::VectorXd coeff = polyfit(wayptsx_car, wayptsy_car, poly_order);
+
+// Prepare state vector, for cte and epsi use polynome
+// we just created
+Eigen::VectorXd state(6);
+// x,y - car is at center of its own coordinate system in
+//       initial state
+state[0] = 0.0;
+state[1] = 0.0;
+// psi - car points straight forward
+state[2] = 0.0;
+// v - speed, m/s
+state[3] = v;
+// cte - is simply f(0.0)
+state[4] = polyeval(coeff, 0.0);
+// epsi - angle btw. f(x) & x-axis at x=0 --> arctan(f'(0))
+//        f=ax^3+bx^2+cx+d --> f'(x)=3ax^2+2bx+c --> f'(0)=c
+state[5] = -atan(coeff[1]);
+```
+
+Various other steps have been applied as preprocessing step:
+
+* Accounting for latency: see next section
+* Calculating reference velocity: depending on whether the current section
+of the road (i.e. the current fitted polynomial) was curved or straight the
+reference velocity was set to "high" or "low". Also, if the car "just started"
+(i.e., the current velocity was very low), the reference velocity is set higher
+in order to speed up faster.
+
+```c++
+// calculate radius of curvature of polynomial f(x) at x=0
+double radius;
+// catch division by zero
+if (fabs(coeff[2]) > 0.0001) {
+    // R(x) = ((1 + (dy/dx)^2)^1.5) / abs(d^2y/dx^2)
+    //      = ((1 + f'(x)^2)^1.5) / abs(f''(x))
+    //      = ((1 + (3ax^2+2bx+c)^2)^1.5 / abs(6ax+2b)
+    // R(0) = ((1 + c^2)^1.5 / abs(2b)
+    radius = pow(1.0+pow(coeff[1], 2), 1.5) / fabs(2.*coeff[2]);
+} else {
+    radius = 1000.;
+}
+
+// Set reference speed depending on radius
+double v_ref; // in mph. MPC will convert to m/s2
+if (v_mph < 60.) {
+    // at beginning, speed up
+    v_ref = 120;
+} else {
+    if (radius < 80) {
+        // in a turn, slow down
+        v_ref = 60;
+    } else {
+        // in a straight road, accelerate!
+        v_ref = 90;
+    }
+}
+v_ref *= mph_to_mps;
+```
+
 ### Accounting for Latency
+
+The latency was assumed to be slightly higher than the artificial latency
+of 0.1ms. Therefore, we assume the initial state of the car to be ~0.12ms
+ahead of its current state. We simply update the state according to our
+motion model. This does not take into consideration that bearing and velocity
+might change over the 0.12ms, but should be a fair approximation (see
+``main.cpp``):
+
+```c++
+// Take into account latency (assumes psi and v constant)
+const double latency = 0.12 ; // ~120 ms
+if (latency > 0) {
+    px = px + v * cos(psi) * latency;
+    py = py + v * sin(psi) * latency;
+    psi = psi - v * deg2rad(prev_steer_value * 25.) / mpc.Lf * latency;
+}
+```
+
 
 ## Dependencies
 
@@ -49,72 +274,3 @@
 2. Make a build directory: `mkdir build && cd build`
 3. Compile: `cmake .. && make`
 4. Run it: `./mpc`.
-
-## Tips
-
-1. It's recommended to test the MPC on basic examples to see if your implementation behaves as desired. One possible example
-is the vehicle starting offset of a straight line (reference). If the MPC implementation is correct, after some number of timesteps
-(not too many) it should find and track the reference line.
-2. The `lake_track_waypoints.csv` file has the waypoints of the lake track. You could use this to fit polynomials and points and see of how well your model tracks curve. NOTE: This file might be not completely in sync with the simulator so your solution should NOT depend on it.
-3. For visualization this C++ [matplotlib wrapper](https://github.com/lava/matplotlib-cpp) could be helpful.)
-4.  Tips for setting up your environment are available [here](https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/0949fca6-b379-42af-a919-ee50aa304e6a/lessons/f758c44c-5e40-4e01-93b5-1a82aa4e044f/concepts/23d376c7-0195-4276-bdf0-e02f1f3c665d)
-5. **VM Latency:** Some students have reported differences in behavior using VM's ostensibly a result of latency.  Please let us know if issues arise as a result of a VM environment.
-
-## Editor Settings
-
-We've purposefully kept editor configuration files out of this repo in order to
-keep it as simple and environment agnostic as possible. However, we recommend
-using the following settings:
-
-* indent using spaces
-* set tab width to 2 spaces (keeps the matrices in source code aligned)
-
-## Code Style
-
-Please (do your best to) stick to [Google's C++ style guide](https://google.github.io/styleguide/cppguide.html).
-
-## Project Instructions and Rubric
-
-Note: regardless of the changes you make, your project must be buildable using
-cmake and make!
-
-More information is only accessible by people who are already enrolled in Term 2
-of CarND. If you are enrolled, see [the project page](https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/f1820894-8322-4bb3-81aa-b26b3c6dcbaf/lessons/b1ff3be0-c904-438e-aad3-2b5379f0e0c3/concepts/1a2255a0-e23c-44cf-8d41-39b8a3c8264a)
-for instructions and the project rubric.
-
-## Hints!
-
-* You don't have to follow this directory structure, but if you do, your work
-  will span all of the .cpp files here. Keep an eye out for TODOs.
-
-## Call for IDE Profiles Pull Requests
-
-Help your fellow students!
-
-We decided to create Makefiles with cmake to keep this project as platform
-agnostic as possible. Similarly, we omitted IDE profiles in order to we ensure
-that students don't feel pressured to use one IDE or another.
-
-However! I'd love to help people get up and running with their IDEs of choice.
-If you've created a profile for an IDE that you think other students would
-appreciate, we'd love to have you add the requisite profile files and
-instructions to ide_profiles/. For example if you wanted to add a VS Code
-profile, you'd add:
-
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
-
-The README should explain what the profile does, how to take advantage of it,
-and how to install it.
-
-Frankly, I've never been involved in a project with multiple IDE profiles
-before. I believe the best way to handle this would be to keep them out of the
-repo root to avoid clutter. My expectation is that most profiles will include
-instructions to copy files to a new location to get picked up by the IDE, but
-that's just a guess.
-
-One last note here: regardless of the IDE used, every submitted project must
-still be compilable with cmake and make./
-
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).

@@ -41,21 +41,21 @@ public:
     const double steering_penalty = 2000;
 
     // Constructor
-    FG_eval(Eigen::VectorXd coeffs, double v_ref, double Lf) { 
-        this->coeffs = coeffs; 
+    FG_eval(Eigen::VectorXd coeffs, double v_ref, double Lf) {
+        this->coeffs = coeffs;
         this->v_ref = v_ref;
         this->Lf = Lf;
     }
 
     // ADvector will be shorthand for CppAD::vector<double>
     typedef CPPAD_TESTVECTOR(AD<double>) ADvector;
-        
+
     // Operator overloading, you can call an `FG_eval` object `o` like
-    // `o(fg, vars)` where 
+    // `o(fg, vars)` where
     // `fg` is a vector containing the cost and constraints.
     // `vars` is a vector containing the variable values (state & actuators).
     void operator()(ADvector& fg, const ADvector& vars) {
-    
+
         // *** Cost: fg[0]
 
         // The cost is stored is the first element of `fg`.
@@ -94,11 +94,11 @@ public:
             fg[0] += CppAD::pow(vars[a_start+t+1] - vars[a_start+t], 2);
         }
 
-        
-        // *** Initial constraints: fg[1 + {variable}] 
+
+        // *** Initial constraints: fg[1 + {variable}]
         // That's where we are right now! (constant constraint)
-        
-        // Bumping up by (fg[1 + ...]) because fg[0] contains our cost 
+
+        // Bumping up by (fg[1 + ...]) because fg[0] contains our cost
         fg[1 + x_start] = vars[x_start];
         fg[1 + y_start] = vars[y_start];
         fg[1 + psi_start] = vars[psi_start];
@@ -109,10 +109,10 @@ public:
         // *** Constraints based on motion model fg[1 + {variable} + {1..N}]
         // With "+ {1..N}" we "fill the gaps" in fg[...] that are open due to
         // the way the "..._start" variables are spaced apart.
-        // For constraints based on motion model we only need to consider 
+        // For constraints based on motion model we only need to consider
         // starting from time t = 1
         for (unsigned int t = 1; t < N; t++) {
-            
+
             // The state at time t
             AD<double> x1 = vars[x_start + t];
             AD<double> y1 = vars[y_start + t];
@@ -141,29 +141,29 @@ public:
             // We will set constraints A=B as fg[i]=A-B and will then
             // optimize fg[i] -> 0.
             // So from the various equations of the motion model follows...
-            
-            // x_[t] = x[t-1] + v[t-1] * cos(psi[t-1]) * dt
+
+            // x[t1] = x[t0] + v[t0] * cos(psi[t0]) * dt
             fg[1 + x_start + t] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
-            
-            // y_[t+1] = y[t] + v[t] * sin(psi[t]) * dt
+
+            // y[t1] = y[t0] + v[t0] * sin(psi[t]) * dt
             fg[1 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
-            
-            // psi_[t+1] = psi[t] + v[t] / Lf * delta[t] * dt
+
+            // psi[t1] = psi[t0] + v[t0] / Lf * delta[t] * dt
             // but: simulator steering angle/delta is reversed, hence "- ... delta0"
             fg[1 + psi_start + t] = psi1 - (psi0 - v0 * delta0 / Lf * dt);
-            
-            // v_[t+1] = v[t] + a[t] * dt
+
+            // v[t1] = v[t0] + a[t0] * dt
             fg[1 + v_start + t] = v1 - (v0 + a0 * dt);
-            
-            // cte[t+1] = f(x[t]) - y[t] + v[t] * sin(epsi[t]) * dt
+
+            // cte[t1] = f(x[t0]) - y[t0] + v[t0] * sin(epsi[t]) * dt
             fg[1 + cte_start + t] =
                 cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
-            
-            // epsi[t+1] = psi[t] - psides[t] + v[t] * delta[t] / Lf * dt
+
+            // epsi[t1] = psi[t0] - psides[t0] + v[t0] * delta[t0] / Lf * dt
             // but: simulator steering angle/delta is reversed, hence "- ... delta0"
             fg[1 + epsi_start + t] =
                 epsi1 - (psi0 - psides0 - v0 * delta0 / Lf * dt);
-        
+
         }
     }
 };
@@ -175,9 +175,9 @@ public:
 MPC::MPC() {}
 MPC::~MPC() {}
 
-vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs, double v_ref, 
+vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs, double v_ref,
                           bool& success, vector<double>& ptsx_car_pred, vector<double>& ptsy_car_pred) {
-    
+
     typedef CPPAD_TESTVECTOR(double) Dvector;
 
     // initial state
@@ -195,14 +195,14 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs, double 
     size_t n_constraints = N * 6;
 
     // *** Setting up variables and constraints
-    
+
     // Initial value of the independent variables.
     // Should be 0 except for the initial values.
     Dvector vars(n_vars);
     for (unsigned int i = 0; i < n_vars; i++) {
         vars[i] = 0.0;
     }
-    
+
     // Set the initial variable values
     vars[x_start] = x;
     vars[y_start] = y;
@@ -213,9 +213,9 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs, double 
 
     // Lower and upper limits for x
     Dvector vars_lowerbound(n_vars);
-    Dvector vars_upperbound(n_vars);    
-    
-    // Set all non-actuators upper and lowerlimits to the max negative 
+    Dvector vars_upperbound(n_vars);
+
+    // Set all non-actuators upper and lowerlimits to the max negative
     // and positive values.
     for (unsigned int i = 0; i < delta_start; i++) {
         vars_lowerbound[i] = -1.0e19;
@@ -245,7 +245,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs, double 
       constraints_lowerbound[i] = 0;
       constraints_upperbound[i] = 0;
     }
-    
+
     constraints_lowerbound[x_start] = x;
     constraints_lowerbound[y_start] = y;
     constraints_lowerbound[psi_start] = psi;
@@ -261,7 +261,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs, double 
     constraints_upperbound[epsi_start] = epsi;
 
     // *** Calling the solver
-    
+
     // Object that computes objective and constraints
     FG_eval fg_eval(coeffs, v_ref, Lf);
 
@@ -285,8 +285,8 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs, double 
 
     // solve the problem
     CppAD::ipopt::solve<Dvector, FG_eval>(
-            options, vars, vars_lowerbound, vars_upperbound, 
-            constraints_lowerbound, constraints_upperbound, 
+            options, vars, vars_lowerbound, vars_upperbound,
+            constraints_lowerbound, constraints_upperbound,
             fg_eval, solution
         );
 
@@ -298,7 +298,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs, double 
         ptsx_car_pred[t] = solution.x[x_start + t];
         ptsy_car_pred[t] = solution.x[y_start + t];
     }
-    
+
     // DONE
     // Return the first actuator values. The variables can be accessed with
     // solution.x[i]`.
