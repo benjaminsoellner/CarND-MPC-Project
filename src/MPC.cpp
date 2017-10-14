@@ -88,7 +88,7 @@ public:
         for (unsigned int t = 0; t < N - 2; t++) {
             // difference between current and next steering should be minimal
             // square influence to cost
-            fg[0] += CppAD::pow(vars[delta_start+t+1] - vars[delta_start+t], 2);
+            fg[0] += steering_penalty * CppAD::pow(vars[delta_start+t+1] - vars[delta_start+t], 2);
             // difference between current and next actuation should be minimal
             // square influence to cost
             fg[0] += CppAD::pow(vars[a_start+t+1] - vars[a_start+t], 2);
@@ -136,7 +136,7 @@ public:
             // Linear approximation of moving from x0 to x1
             AD<double> f0 = coeffs[0] + x0 * (coeffs[1] + x0 * (coeffs[2]));
             // Designated steering angle
-            AD<double> psides0 = CppAD::atan(coeffs[1]);
+            AD<double> psides0 = CppAD::atan(2 * coeffs[2] * x0 + coeffs[1]);
 
             // We will set constraints A=B as fg[i]=A-B and will then
             // optimize fg[i] -> 0.

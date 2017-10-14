@@ -97,18 +97,21 @@ int main() {
                     double py = j[1]["y"];
                     double psi = j[1]["psi"];
                     double v_mph = j[1]["speed"];
+                    double steering_value = j[1]["steering_angle"];
+                    double throttle = j[1]["throttle"];
                     const double mph_to_mps = (1609. / 3600.);
-                    const double v = v_mph * mph_to_mps; // speed in m/s
+                    double v = v_mph * mph_to_mps; // speed in m/s
 
                     // DONE.
                     // Calculate steering angle and throttle using MPC.
                     
-                    // Take into account latency (assumes psi and v constant)
-                    const double latency = 0.12 ; // ~120 ms
+                    // Take into account latency 
+                    const double latency = 0.15 ; // ~150 ms
                     if (latency > 0) {
                         px = px + v * cos(psi) * latency;
                         py = py + v * sin(psi) * latency;
-                        psi = psi - v * deg2rad(prev_steer_value * 25.) / mpc.Lf * latency;
+                        psi = psi - v * steering_value / mpc.Lf * latency;
+                        v = v + throttle * latency;
                     }
                     
                     // Convert waypoints from global to car coordinate system
@@ -145,7 +148,7 @@ int main() {
                     // cte - is simply f(0.0)
                     state[4] = polyeval(coeff, 0.0); 
                     // epsi - angle btw. f(x) & x-axis at x=0 --> arctan(f'(0))
-                    //        f=ax^3+bx^2+cx+d --> f'(x)=3ax^2+2bx+c --> f'(0)=c
+                    //        f=ax^2+bx+c --> f'(x)=2ax+b --> f'(0)=b
                     state[5] = -atan(coeff[1]);
                     
                     // calculate radius of curvature of polynomial f(x) at x=0
@@ -163,16 +166,16 @@ int main() {
                     
                     // Set reference speed depending on radius
                     double v_ref; // in mph. MPC will convert to m/s2
-                    if (v_mph < 60.) {
+                    if (v_mph < 40.) {
                         // at beginning, speed up
                         v_ref = 120;
                     } else {
                         if (radius < 80) {
                             // in a turn, slow down
-                            v_ref = 60;
+                            v_ref = 40;
                         } else {
                             // in a straight road, accelerate!
-                            v_ref = 90;
+                            v_ref = 70;
                         }
                     }
                     v_ref *= mph_to_mps;
@@ -191,7 +194,7 @@ int main() {
                         // the steering value back. Otherwise the values will be 
                         // in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
                         steer_value = solution[0] / deg2rad(25); 
-                        throttle_value = solution[1] / 5.0;
+                        throttle_value = solution[1];
                         std::cout << "Steering: " << steer_value << ", Throttle: " << throttle_value << std::endl;
                     } else {
                         // if solver failed, keep old values 

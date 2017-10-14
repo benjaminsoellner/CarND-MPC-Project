@@ -26,7 +26,7 @@ The predictive controller then aims to minimize the cross-track-error, the
 bearing error as well as the magnitude of the steering inputs across all
 timesteps ``N``.
 
-[![The video thumbnail](http://img.youtube.com/vi/3EJbkcEs55U/0.jpg)](https://youtu.be/3EJbkcEs55U)
+[![The video thumbnail](http://img.youtube.com/vi/hiO854gdRZY/0.jpg)](https://youtu.be/hiO854gdRZY)
 
 *(note that the latency captured in the video is significantly larger than
 without recording turned on, hence there is some oversteering)*
@@ -132,7 +132,7 @@ predicted trajectory has already passed.
 
 ![Screenshot with N Too High](images/screenshot-n25-dt005.png)
 
-#### ``dt`` too high (``N=20, dt=0.05``)
+#### ``dt`` too high (``N=20, dt=0.5``)
 
 If ``dt`` is too high, especially in a case where it involves a predicted
 trajectory with too many curves, the optimization becomes unstable and the
@@ -144,6 +144,19 @@ simply is not sophisticated enough any more to mimic the subsequent road turns:
 This can lead to the car oversteering and ultimately leaving the track:
 
 ![Screenshot with dt Too High - With Car Off Track](images/screenshot-n20-dt05-fail.png)
+
+#### Choosing the Optimal ``N`` & ``dt``
+
+I chose ``N=15`` and ``dt=0.15``.
+
+* Lower ``dt`` is generally better (finer resolution) but must be counteracted
+by a higher ``N`` in order to result in a smooth controlled path
+* Too high ``N`` led to higher computational load and therefore latency, letting
+the car correct too late and leading to a shaky, "seasickening" car
+* Overall, a good trade-off between a large "horizon" ``N*dt`` and the
+computational effort must be found. A large horizon leads to more precise
+control of the car and avoids sharp curves, thereby increasing the possible
+reference velocity.
 
 ### Polynomial Fitting and MPC Preprocessing
 
@@ -191,7 +204,7 @@ state[3] = v;
 // cte - is simply f(0.0)
 state[4] = polyeval(coeff, 0.0);
 // epsi - angle btw. f(x) & x-axis at x=0 --> arctan(f'(0))
-//        f=ax^3+bx^2+cx+d --> f'(x)=3ax^2+2bx+c --> f'(0)=c
+//        f=ax^2+bx+c --> f'(x)=2ax+b --> f'(0)=b
 state[5] = -atan(coeff[1]);
 ```
 
@@ -238,19 +251,19 @@ v_ref *= mph_to_mps;
 ### Accounting for Latency
 
 The latency was assumed to be slightly higher than the artificial latency
-of 0.1ms. Therefore, we assume the initial state of the car to be ~0.12ms
+of 0.1ms. Therefore, we assume the initial state of the car to be ~0.15ms
 ahead of its current state. We simply update the state according to our
-motion model. This does not take into consideration that bearing and velocity
-might change over the 0.12ms, but should be a fair approximation (see
-``main.cpp``):
+motion model. As a simplification, we assume the throttle to be equal to
+the acceleration (see ``main.cpp``):
 
 ```c++
-// Take into account latency (assumes psi and v constant)
-const double latency = 0.12 ; // ~120 ms
+// Take into account latency
+const double latency = 0.15 ; // ~150 ms
 if (latency > 0) {
     px = px + v * cos(psi) * latency;
     py = py + v * sin(psi) * latency;
-    psi = psi - v * deg2rad(prev_steer_value * 25.) / mpc.Lf * latency;
+    psi = psi - v * steering_value / mpc.Lf * latency;
+    v = v + throttle * latency;
 }
 ```
 ## Environment
